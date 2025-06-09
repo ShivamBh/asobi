@@ -1,0 +1,15 @@
+{
+  "name": "asobi",
+  "version": "0.1.0",
+  "description": "CLI tool to setup a load balanced ec2 server",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npx tsx src/index.ts"
+  },
+  "author": "Shivam Bhattacharjee",
+  "license": "MIT",
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
