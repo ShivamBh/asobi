@@ -1,0 +1,21 @@
+
+- Find and use local aws credentials 
+  - If multiple profiles are found, parse them ask which one to use
+   - Or export in the env and asobi will use that
+   - If not found, prompt user to input 
+- asobi init: Make a local yaml config file inside .asobi folder
+- Record everything there 
+- When something fails, retry based on yaml file
+
+- asobi create does a init in the background if not already present.
+ - If present, tell the user theres already an application and show the details. Prompt user to use other commands because create is already done.
+ - Maybe detect app status in this stage if there is a failed deployment
+
+ - If user wants to make another, allow
+
+- asobi ls, asobi delete, asobi deploy etc. all rely on the local config yaml to do stuff.
+
+- asobi delete: Remove all the stuff in a particular order.
+ - Does not reset the config file. User can use the same stuff again to create another deployment from scratch
+
+- Use the resourcegrouptagging API to find applications created by asobi

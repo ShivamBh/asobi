@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled promise rejection:", error);
+  process.exit(1);
+});
+
+const {program} = require("../dist/cli/index.js");
+program.parse(process.argv)

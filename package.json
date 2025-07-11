@@ -2,9 +2,14 @@
   "name": "asobi",
   "version": "0.1.0",
   "description": "CLI tool to setup a load balanced ec2 server",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "bin": {
+    "asobi": "./bin/asobi"
+  },
   "scripts": {
-    "dev": "npx tsx src/index.ts"
+    "dev": "npx tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js"
   },
   "author": "Shivam Bhattacharjee",
   "license": "MIT",
