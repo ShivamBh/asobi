@@ -141,7 +141,7 @@ Asobi creates the following AWS resources:
 
 - ✅ Basic CLI structure
 - ✅ AWS service integrations (EC2, VPC, IAM, ALB)
-- ✅ Infrastructure creation and deletion
+- ✅ Infrastructure creation and rollback
 - ✅ Configuration management
 - ✅ Resource tagging
 
