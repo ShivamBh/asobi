@@ -37,17 +37,17 @@ export class InfrastructureService {
     this.config = config;
     this.uniqueId = nanoid(10);
 
-    const clientConfig = {
+    const awsClientConfig = {
       region: config.region,
       credentials: {
         accessKeyId: config.accessKeyId || "",
         secretAccessKey: config.secretAccessKey || "",
       },
     };
-    const ec2Client = new EC2Client(clientConfig);
-    const iamClient = new IAMClient(clientConfig);
-    const albClient = new ElasticLoadBalancingV2Client(clientConfig);
-    this.stsClient = new STSClient(clientConfig);
+    const ec2Client = new EC2Client(awsClientConfig);
+    const iamClient = new IAMClient(awsClientConfig);
+    const albClient = new ElasticLoadBalancingV2Client(awsClientConfig);
+    this.stsClient = new STSClient(awsClientConfig);
 
     this.vpcService = new VpcService(config, ec2Client);
     const cidrService = new CIDRService(ec2Client);
@@ -244,9 +244,9 @@ export class InfrastructureService {
         error instanceof Error ? error.message : "Unknown error"
       );
       console.log("\n=== Starting Rollback Process ===");
-      console.log("Resources to rollback:", this.resources);
+      console.log("Resources to rollback:", this.config.resources);
       await this.rollbackDeletion(
-        this.resources as InfrastructureConfig["resources"],
+        this.config.resources as InfrastructureConfig["resources"],
         new Set()
       );
       return {
@@ -384,149 +384,145 @@ export class InfrastructureService {
       const resources = this.config.resources;
 
       // Delete resources in reverse order of creation with rollback handling
-      try {
-        // Step 1: Deregister target from ALB
-        if (resources.instanceId && resources.targetGroupArn) {
-          await this.retryOperation(
-            async () => {
-              await this.albService.deregisterTarget(
-                resources.targetGroupArn!,
-                resources.instanceId!
-              );
-              deletedResources.add("target_registration");
-            },
-            "target deregistration",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
 
-        // Step 2: Delete ALB and target group
-        if (resources.loadBalancerArn && resources.targetGroupArn) {
-          await this.retryOperation(
-            async () => {
-              await this.albService.deleteLoadBalancer(
-                resources.loadBalancerArn!,
-                resources.targetGroupArn!
-              );
-              deletedResources.add("load_balancer");
-            },
-            "load balancer",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
-
-        // Step 3: Terminate EC2 instance
-        if (resources.instanceId) {
-          await this.retryOperation(
-            async () => {
-              await this.ec2Service.terminateInstance(resources.instanceId!);
-              deletedResources.add("ec2_instance");
-            },
-            "EC2 instance",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
-
-        // Step 4: Delete security groups
-        if (resources.securityGroupIds) {
-          await this.retryOperation(
-            async () => {
-              await this.securityGroupService.deleteSecurityGroups(
-                resources.securityGroupIds
-              );
-              deletedResources.add("security_groups");
-            },
-            "security groups",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
-
-        // Step 5: Delete subnets
-        if (resources.subnetIds) {
-          await this.retryOperation(
-            async () => {
-              await this.subnetService.deleteSubnets(resources.subnetIds);
-              deletedResources.add("subnets");
-            },
-            "subnets",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
-
-        // Step 6: Delete VPC and related resources
-        if (
-          resources.vpcId &&
-          resources.routeTableId &&
-          resources.internetGatewayId
-        ) {
-          await this.retryOperation(
-            async () => {
-              await this.vpcService.deleteVpc(
-                resources.vpcId!,
-                resources.routeTableId!,
-                resources.internetGatewayId!
-              );
-              deletedResources.add("vpc");
-            },
-            "VPC",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
-
-        // Step 7: Delete IAM instance profile
-        if (resources.instanceProfileName) {
-          await this.retryOperation(
-            async () => {
-              await this.iamService.deleteInstanceProfile(
-                resources.instanceProfileName!
-              );
-              deletedResources.add("instance_profile");
-            },
-            "IAM instance profile",
-            MAX_RETRIES,
-            failedResources
-          );
-        }
-
-        // Log any failed resources
-        if (failedResources.length > 0) {
-          console.warn("\nWarning: Some resources could not be deleted:");
-          failedResources.forEach(({ resource, error }) => {
-            console.warn(`- ${resource}: ${error}`);
-          });
-        }
-
-        // Remove app from global config only if all resources were deleted or skipped
-        // await this.globalConfig.removeApp(this.config.appName);
-        console.log("Infrastructure deleted successfully!");
-
-        return {
-          success: true,
-          error:
-            failedResources.length > 0
-              ? "Some resources could not be deleted"
-              : undefined,
-        };
-      } catch (error) {
-        // Attempt rollback for the successfully deleted resources
-        console.error("Error during deletion, attempting rollback...");
-        await this.rollbackDeletion(resources, deletedResources);
-
-        return {
-          success: false,
-          error: `Failed to delete infrastructure: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-        };
+      // Step 1: Deregister target from ALB
+      if (resources.instanceId && resources.targetGroupArn) {
+        await this.retryOperation(
+          async () => {
+            await this.albService.deregisterTarget(
+              resources.targetGroupArn!,
+              resources.instanceId!
+            );
+            deletedResources.add("target_registration");
+          },
+          "target deregistration",
+          MAX_RETRIES,
+          failedResources
+        );
       }
+
+      // Step 2: Delete ALB and target group
+      if (resources.loadBalancerArn && resources.targetGroupArn) {
+        await this.retryOperation(
+          async () => {
+            await this.albService.deleteLoadBalancer(
+              resources.loadBalancerArn!,
+              resources.targetGroupArn!
+            );
+            deletedResources.add("load_balancer");
+          },
+          "load balancer",
+          MAX_RETRIES,
+          failedResources
+        );
+      }
+
+      // Step 3: Terminate EC2 instance
+      if (resources.instanceId) {
+        await this.retryOperation(
+          async () => {
+            await this.ec2Service.terminateInstance(resources.instanceId!);
+            deletedResources.add("ec2_instance");
+          },
+          "EC2 instance",
+          MAX_RETRIES,
+          failedResources
+        );
+      }
+
+      // Step 4: Delete security groups
+      if (resources.securityGroupIds) {
+        await this.retryOperation(
+          async () => {
+            await this.securityGroupService.deleteSecurityGroups(
+              resources.securityGroupIds
+            );
+            deletedResources.add("security_groups");
+          },
+          "security groups",
+          MAX_RETRIES,
+          failedResources
+        );
+      }
+
+      // Step 5: Delete subnets
+      if (resources.subnetIds) {
+        await this.retryOperation(
+          async () => {
+            await this.subnetService.deleteSubnets(resources.subnetIds);
+            deletedResources.add("subnets");
+          },
+          "subnets",
+          MAX_RETRIES,
+          failedResources
+        );
+      }
+
+      // Step 6: Delete VPC and related resources
+      if (
+        resources.vpcId &&
+        resources.routeTableId &&
+        resources.internetGatewayId
+      ) {
+        await this.retryOperation(
+          async () => {
+            await this.vpcService.deleteVpc(
+              resources.vpcId!,
+              resources.routeTableId!,
+              resources.internetGatewayId!
+            );
+            deletedResources.add("vpc");
+          },
+          "VPC",
+          MAX_RETRIES,
+          failedResources
+        );
+      }
+
+      // Step 7: Delete IAM instance profile
+      if (resources.instanceProfileName) {
+        await this.retryOperation(
+          async () => {
+            await this.iamService.deleteInstanceProfile(
+              resources.instanceProfileName!
+            );
+            deletedResources.add("instance_profile");
+          },
+          "IAM instance profile",
+          MAX_RETRIES,
+          failedResources
+        );
+      }
+
+      // Log any failed resources
+      if (failedResources.length > 0) {
+        console.warn("\nWarning: Some resources could not be deleted:");
+        failedResources.forEach(({ resource, error }) => {
+          console.warn(`- ${resource}: ${error}`);
+        });
+      }
+
+      // await this.globalConfig.removeApp(this.config.appName);
+      console.log("Infrastructure deleted successfully!");
+
+      return {
+        success: true,
+        error:
+          failedResources.length > 0
+            ? "Some resources could not be deleted"
+            : undefined,
+      };
     } catch (error) {
       console.error("Error in deleteInfrastructure:", error);
+      // console.error("Error during deletion, attempting rollback...");
+      //   await this.rollbackDeletion(resources, deletedResources);
+
+      //   return {
+      //     success: false,
+      //     error: `Failed to delete infrastructure: ${
+      //       error instanceof Error ? error.message : "Unknown error"
+      //     }`,
+      //   };
       return {
         success: false,
         error:
@@ -543,25 +539,4 @@ export class InfrastructureService {
       return null;
     }
   }
-
-  // async purgeAllApps(): Promise<void> {
-  //   try {
-  //     const apps = await this.globalConfig.getAllApps();
-  //     for (const app of apps) {
-  //       const tempConfig = { ...this.config, appName: app.name };
-  //       const tempService = new InfrastructureService(tempConfig);
-  //       await tempService.deleteInfrastructure();
-  //     }
-  //     await this.globalConfig.purgeAllApps();
-  //     console.log(
-  //       "All apps and their resources have been purged successfully!"
-  //     );
-  //   } catch (error: unknown) {
-  //     console.error("Error purging all apps:", error);
-  //     throw new InfrastructureError(
-  //       error instanceof Error ? error.message : "Unknown error occurred",
-  //       "APP_PURGE_FAILED"
-  //     );
-  //   }
-  // }
 }
