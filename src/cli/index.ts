@@ -20,36 +20,6 @@ program
   .helpOption("-h, --help", "display help for commands");
 
 /* 
-  Initialize a asobi project. Creates a .asobi directory with a asobi.json file containing the project configurations if it does not exist.
-*/
-
-program
-  .command("init")
-  .description("Initialize an asobi project in this directory")
-  .action(async () => {
-    const currentDir = process.cwd();
-    const configFilePath = currentDir + "/.asobi/asobi.json";
-    try {
-      // Check if .asobi exists otherwise create and add the asobi.json file to it.
-      const asobiExists = existsSync(currentDir + "/.asobi");
-      if (!asobiExists) {
-        await mkdir(`${currentDir}/.asobi`);
-        const basicConfig = {
-          appname: "string",
-          vpc: "something",
-        };
-        await writeFile(configFilePath, JSON.stringify(basicConfig));
-        console.log("Created project config file at", configFilePath);
-        process.exit(1);
-      }
-      console.log("Found existing config file at", configFilePath);
-    } catch (e) {
-      console.error(`Error`, e);
-      process.exit(1);
-    }
-  });
-
-/* 
   List all asobi applications or details of specific asobi app
 */
 program
