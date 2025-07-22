@@ -17,8 +17,8 @@ import { ALBService } from "./ALBService";
 import { nanoid } from "nanoid";
 import inquirer from "inquirer";
 import { InfrastructureError } from "../utls/errors";
-import { GlobalConfigService } from "./globalConfigService";
 import { CIDRService } from "./CIDRService";
+import { ConfigService } from "./configService";
 
 export class InfrastructureService {
   private readonly config: InfrastructureConfig;
@@ -31,9 +31,9 @@ export class InfrastructureService {
   private readonly albService: ALBService;
   private resources: InfrastructureResources | null = null;
   private readonly stsClient: STSClient;
-  private readonly globalConfig: GlobalConfigService;
+  private readonly configService: ConfigService;
 
-  constructor(config: InfrastructureConfig) {
+  constructor(config: InfrastructureConfig, configService: ConfigService) {
     this.config = config;
     this.uniqueId = nanoid(10);
 
@@ -56,7 +56,7 @@ export class InfrastructureService {
     this.ec2Service = new EC2Service(config, ec2Client);
     this.iamService = new IAMService(config, iamClient);
     this.albService = new ALBService(config, albClient);
-    this.globalConfig = new GlobalConfigService();
+    this.configService = configService;
   }
 
   private async getAwsAccountDetails(): Promise<{
@@ -117,6 +117,8 @@ export class InfrastructureService {
         return { success: false, error: "Operation cancelled by user" };
       }
 
+      await this.configService.updateConfigFile(this.config);
+
       console.log("\n=== Creating Infrastructure ===");
       console.log("Configuration:", {
         appName: this.config.appName,
@@ -126,148 +128,130 @@ export class InfrastructureService {
         isNodeProject: this.config.isNodeProject,
       });
 
-      const resources: InfrastructureResources = {
-        vpcId: null,
-        subnetIds: [],
-        securityGroupIds: [],
-        instanceId: null,
-        loadBalancerArn: null,
-        targetGroupArn: null,
-        certificateArn: null,
-        routeTableId: null,
-        internetGatewayId: null,
-        instanceProfileName: null,
-      };
+      // Create VPC
+      console.log("\n=== Creating VPC ===");
+      const vpcDetails = await this.vpcService.selectOrCreateVpc();
 
-      try {
-        // Create VPC
-        console.log("\n=== Creating VPC ===");
-        const vpcDetails = await this.vpcService.selectOrCreateVpc();
-        resources.vpcId = vpcDetails.vpcId;
-        resources.routeTableId = vpcDetails.routeTableId;
-        resources.internetGatewayId = vpcDetails.internetGatewayId;
-        console.log("✓ VPC created");
+      // update config
+      this.config.resources.vpcId = vpcDetails.vpcId;
+      this.config.resources.routeTableId = vpcDetails.routeTableId;
+      this.config.resources.internetGatewayId = vpcDetails.internetGatewayId;
+      await this.configService.updateConfigFile(this.config);
+      console.log("✓ VPC created");
 
-        // Create subnets
-        console.log("\n=== Creating Subnets ===");
-        const subnetIds = await this.subnetService.createSubnets(
-          vpcDetails.vpcId,
-          vpcDetails.cidrBlock,
-          vpcDetails.availabilityZones
-        );
-        resources.subnetIds = subnetIds;
-        console.log("✓ Subnets created");
+      // Create subnets
+      console.log("\n=== Creating Subnets ===");
+      const subnetIds = await this.subnetService.createSubnets(
+        vpcDetails.vpcId,
+        vpcDetails.cidrBlock,
+        vpcDetails.availabilityZones
+      );
+      this.config.resources.subnetIds = subnetIds;
+      console.log("✓ Subnets created");
+      await this.configService.updateConfigFile(this.config);
 
-        // Create security groups
-        console.log("\n=== Creating Security Groups ===");
-        const securityGroupIds =
-          await this.securityGroupService.createSecurityGroups(
-            vpcDetails.vpcId
-          );
-        resources.securityGroupIds = securityGroupIds;
-        console.log("✓ Security groups created");
+      // Create security groups
+      console.log("\n=== Creating Security Groups ===");
+      const securityGroupIds =
+        await this.securityGroupService.createSecurityGroups(vpcDetails.vpcId);
+      this.config.resources.securityGroupIds = securityGroupIds;
+      console.log("✓ Security groups created");
+      await this.configService.updateConfigFile(this.config);
 
-        // Create IAM role and instance profile
-        console.log("\n=== Creating IAM Role and Instance Profile ===");
-        const instanceProfileName =
-          await this.iamService.createInstanceProfile();
-        resources.instanceProfileName = instanceProfileName;
-        console.log("✓ IAM role and instance profile created");
+      // Create IAM role and instance profile
+      console.log("\n=== Creating IAM Role and Instance Profile ===");
+      const instanceProfileName = await this.iamService.createInstanceProfile();
+      this.config.resources.instanceProfileName = instanceProfileName;
+      console.log("✓ IAM role and instance profile created");
+      await this.configService.updateConfigFile(this.config);
 
-        // Create EC2 instance
-        console.log("\n=== Creating EC2 Instance ===");
-        const instanceId = await this.ec2Service.createEC2Instance(
-          subnetIds[1],
-          securityGroupIds[1],
-          instanceProfileName
-        );
-        resources.instanceId = instanceId;
-        console.log("✓ EC2 instance created");
+      // Create EC2 instance
+      console.log("\n=== Creating EC2 Instance ===");
+      const instanceId = await this.ec2Service.createEC2Instance(
+        subnetIds[1],
+        securityGroupIds[1],
+        instanceProfileName
+      );
+      this.config.resources.instanceId = instanceId;
+      console.log("✓ EC2 instance created");
+      await this.configService.updateConfigFile(this.config);
 
-        // Wait for instance to be running
-        console.log("\n=== Waiting for Instance to be Running ===");
-        await this.ec2Service.waitForInstanceToBeRunning(instanceId);
-        console.log("✓ Instance is running");
+      // Wait for instance to be running
+      console.log("\n=== Waiting for Instance to be Running ===");
+      await this.ec2Service.waitForInstanceToBeRunning(instanceId);
+      console.log("✓ Instance is running");
 
-        // Create ALB and target group
-        console.log("\n=== Creating Application Load Balancer ===");
-        const albResources = await this.albService.createLoadBalancer(
-          vpcDetails.vpcId,
-          subnetIds,
-          securityGroupIds[0]
-        );
-        resources.loadBalancerArn = albResources.loadBalancerArn;
-        resources.targetGroupArn = albResources.targetGroupArn;
-        console.log("✓ ALB and target group created");
+      // Create ALB and target group
+      console.log("\n=== Creating Application Load Balancer ===");
+      const albResources = await this.albService.createLoadBalancer(
+        vpcDetails.vpcId,
+        subnetIds,
+        securityGroupIds[0]
+      );
+      this.config.resources.loadBalancerArn = albResources.loadBalancerArn;
+      this.config.resources.targetGroupArn = albResources.targetGroupArn;
+      console.log("✓ ALB and target group created");
+      await this.configService.updateConfigFile(this.config);
 
-        // Register instance with target group
-        await this.albService.registerTarget(
+      // Register instance with target group
+      await this.albService.registerTarget(
+        albResources.targetGroupArn,
+        instanceId
+      );
+      console.log("✓ Instance registered with Target Group");
+
+      // Wait for target health check only for Node.js projects
+      if (this.config.isNodeProject) {
+        console.log("\n=== Waiting for Target Health Check ===");
+        const isHealthy = await this.albService.waitForHealthCheck(
           albResources.targetGroupArn,
           instanceId
         );
-        console.log("✓ Instance registered with Target Group");
-
-        // Wait for target health check only for Node.js projects
-        if (this.config.isNodeProject) {
-          console.log("\n=== Waiting for Target Health Check ===");
-          const isHealthy = await this.albService.waitForHealthCheck(
-            albResources.targetGroupArn,
-            instanceId
-          );
-          if (!isHealthy) {
-            throw new InfrastructureError(
-              "Target failed health check",
-              "ALB_ERROR"
-            );
-          }
-          console.log("✓ Target health check passed");
-        } else {
-          console.log("\n=== Skipping Health Check ===");
-          console.log(
-            "No web server codebase was deployed, skipping health check"
+        if (!isHealthy) {
+          throw new InfrastructureError(
+            "Target failed health check",
+            "ALB_ERROR"
           );
         }
-
-        // Save resources to config
-        // TODO: save to a config dir/file for vcs
-        // await this.globalConfig.addApp(
-        //   this.config.appName,
-        //   this.uniqueId,
-        //   resources
-        // );
-
-        console.log("\n=== Infrastructure Creation Complete ===");
+        console.log("✓ Target health check passed");
+      } else {
+        console.log("\n=== Skipping Health Check ===");
         console.log(
-          "Load Balancer URL:",
-          `http://${albResources.loadBalancerArn}`
+          "No web server codebase was deployed, skipping health check"
         );
-        console.log("Instance ID:", instanceId);
-        console.log("Target Group ARN:", albResources.targetGroupArn);
-        console.log("Security Group IDs:", securityGroupIds);
-        console.log("Subnet IDs:", subnetIds);
-        console.log("VPC ID:", vpcDetails.vpcId);
-        console.log("Instance Profile Name:", instanceProfileName);
-
-        return { success: true, resources };
-      } catch (error) {
-        console.error(
-          "\n❌ Error during infrastructure creation:",
-          error instanceof Error ? error.message : "Unknown error"
-        );
-        console.log("\n=== Starting Rollback Process ===");
-        console.log("Resources to rollback:", resources);
-        await this.rollbackDeletion(resources, new Set());
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
       }
+
+      console.log("\n=== Infrastructure Creation Complete ===");
+      console.log(
+        "Load Balancer URL:",
+        `http://${albResources.loadBalancerArn}`
+      );
+
+      // TODO: Pretty print the succesfull output on completion(maybe in a table or something more organized than console.logs)
+
+      console.log("Instance ID:", instanceId);
+      console.log("Target Group ARN:", albResources.targetGroupArn);
+      console.log("Security Group IDs:", securityGroupIds);
+      console.log("Subnet IDs:", subnetIds);
+      console.log("VPC ID:", vpcDetails.vpcId);
+      console.log("Instance Profile Name:", instanceProfileName);
+      await this.configService.updateConfigFile(this.config);
+
+      return { success: true, resources: this.config.resources };
     } catch (error) {
-      console.error("Error in createInfrastructure:", error);
+      console.error(
+        "\n❌ Error during infrastructure creation:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+      console.log("\n=== Starting Rollback Process ===");
+      console.log("Resources to rollback:", this.resources);
+      await this.rollbackDeletion(
+        this.resources as InfrastructureConfig["resources"],
+        new Set()
+      );
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -389,7 +373,7 @@ export class InfrastructureService {
     const failedResources: { resource: string; error: string }[] = [];
 
     try {
-      const app = await this.globalConfig.getApp(this.config.appName);
+      const app = await this.config.appName;
       if (!app) {
         return {
           success: false,
@@ -397,7 +381,7 @@ export class InfrastructureService {
         };
       }
 
-      const resources = app.resources;
+      const resources = this.config.resources;
 
       // Delete resources in reverse order of creation with rollback handling
       try {
@@ -510,10 +494,6 @@ export class InfrastructureService {
           );
         }
 
-        // Remove app from global config only if all resources were deleted or skipped
-        await this.globalConfig.removeApp(this.config.appName);
-        console.log("Infrastructure deleted successfully!");
-
         // Log any failed resources
         if (failedResources.length > 0) {
           console.warn("\nWarning: Some resources could not be deleted:");
@@ -521,6 +501,10 @@ export class InfrastructureService {
             console.warn(`- ${resource}: ${error}`);
           });
         }
+
+        // Remove app from global config only if all resources were deleted or skipped
+        // await this.globalConfig.removeApp(this.config.appName);
+        console.log("Infrastructure deleted successfully!");
 
         return {
           success: true,
@@ -553,35 +537,31 @@ export class InfrastructureService {
 
   async getResources(): Promise<InfrastructureResources | null> {
     try {
-      const app = await this.globalConfig.getApp(this.config.appName);
-      if (app) {
-        return app.resources;
-      }
-      return null;
+      return this.config.resources ? this.config.resources : null;
     } catch (error) {
       console.error("Error getting resources:", error);
       return null;
     }
   }
 
-  async purgeAllApps(): Promise<void> {
-    try {
-      const apps = await this.globalConfig.getAllApps();
-      for (const app of apps) {
-        const tempConfig = { ...this.config, appName: app.name };
-        const tempService = new InfrastructureService(tempConfig);
-        await tempService.deleteInfrastructure();
-      }
-      await this.globalConfig.purgeAllApps();
-      console.log(
-        "All apps and their resources have been purged successfully!"
-      );
-    } catch (error: unknown) {
-      console.error("Error purging all apps:", error);
-      throw new InfrastructureError(
-        error instanceof Error ? error.message : "Unknown error occurred",
-        "APP_PURGE_FAILED"
-      );
-    }
-  }
+  // async purgeAllApps(): Promise<void> {
+  //   try {
+  //     const apps = await this.globalConfig.getAllApps();
+  //     for (const app of apps) {
+  //       const tempConfig = { ...this.config, appName: app.name };
+  //       const tempService = new InfrastructureService(tempConfig);
+  //       await tempService.deleteInfrastructure();
+  //     }
+  //     await this.globalConfig.purgeAllApps();
+  //     console.log(
+  //       "All apps and their resources have been purged successfully!"
+  //     );
+  //   } catch (error: unknown) {
+  //     console.error("Error purging all apps:", error);
+  //     throw new InfrastructureError(
+  //       error instanceof Error ? error.message : "Unknown error occurred",
+  //       "APP_PURGE_FAILED"
+  //     );
+  //   }
+  // }
 }
