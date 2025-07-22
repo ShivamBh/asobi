@@ -1,6 +1,8 @@
 import { existsSync } from "fs";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { generateConfigTemplate } from "./generateConfigTemplate";
+import { join } from "path";
+import { InfrastructureConfig } from "../types";
 
 export const checkIfAsobiProject = async () => {
   const currentDir = process.cwd();
@@ -13,9 +15,12 @@ export const checkIfAsobiProject = async () => {
       const starterConfig = generateConfigTemplate();
       await writeFile(configFilePath, JSON.stringify(starterConfig));
       console.log("Created project config file at", configFilePath);
-      return;
+      return null;
     }
     console.log("Found existing config file at", configFilePath);
+    return JSON.parse(
+      await readFile(configFilePath, "utf-8")
+    ) as InfrastructureConfig;
   } catch (e) {
     console.error(`Failed while checking asobi project`, e);
     process.exit(1);

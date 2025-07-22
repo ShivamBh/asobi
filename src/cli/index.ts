@@ -45,31 +45,38 @@ program
     "empty"
   )
   .action(async (options) => {
+    let config: InfrastructureConfig;
+    let appName: string = "";
     // Check if its a asobi project has been initialized, otherwise create a .asobi config directory
-    await checkIfAsobiProject();
+    const initAsobiConfig = await checkIfAsobiProject();
 
     const awsCredentials = await configService.getAwsCredentials();
-    const appName = await configService.promptForAppName();
 
-    const config: InfrastructureConfig = {
-      appName,
-      region: awsCredentials.region,
-      accessKeyId: awsCredentials.accessKeyId,
-      secretAccessKey: awsCredentials.secretAccessKey,
-      instanceType: "t2.micro",
-      resources: {
-        instanceId: null,
-        certificateArn: null,
-        instanceProfileName: null,
-        internetGatewayId: null,
-        loadBalancerArn: null,
-        routeTableId: null,
-        securityGroupIds: [],
-        subnetIds: [],
-        targetGroupArn: null,
-        vpcId: null,
-      },
-    };
+    if (!initAsobiConfig) {
+      appName = await configService.promptForAppName();
+    }
+
+    config = initAsobiConfig
+      ? initAsobiConfig
+      : {
+          appName,
+          region: awsCredentials.region,
+          accessKeyId: awsCredentials.accessKeyId,
+          secretAccessKey: awsCredentials.secretAccessKey,
+          instanceType: "t2.micro",
+          resources: {
+            instanceId: null,
+            certificateArn: null,
+            instanceProfileName: null,
+            internetGatewayId: null,
+            loadBalancerArn: null,
+            routeTableId: null,
+            securityGroupIds: [],
+            subnetIds: [],
+            targetGroupArn: null,
+            vpcId: null,
+          },
+        };
 
     // Handle codebase path if provided
     if (options.path) {
@@ -134,7 +141,8 @@ program
 program
   .command("delete")
   .description("Delete an application")
-  .argument("<app-name>", "Name of the application");
+  .argument("<app-name>", "Name of the application")
+  .action(async () => {});
 
 export async function main(args: string[]): Promise<void> {
   try {
