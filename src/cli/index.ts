@@ -5,6 +5,7 @@ import { InfrastructureConfig } from "../types";
 import { join } from "path";
 import { InfrastructureService } from "../services/infrastructureService";
 import { mkdir, writeFile } from "fs/promises";
+import { checkIfAsobiProject } from "../utls/checkIfAsobiProject";
 
 const program = new Command();
 
@@ -74,6 +75,9 @@ program
     "empty"
   )
   .action(async (options) => {
+    // Check if its a asobi project has been initialized, otherwise create a .asobi config directory
+    await checkIfAsobiProject();
+
     const awsCredentials = await configService.getAwsCredentials();
     const appName = await configService.promptForAppName();
 
@@ -83,6 +87,18 @@ program
       accessKeyId: awsCredentials.accessKeyId,
       secretAccessKey: awsCredentials.secretAccessKey,
       instanceType: "t2.micro",
+      resources: {
+        instanceId: null,
+        certificateArn: null,
+        instanceProfileName: null,
+        internetGatewayId: null,
+        loadBalancerArn: null,
+        routeTableId: null,
+        securityGroupIds: [],
+        subnetIds: [],
+        targetGroupArn: null,
+        vpcId: null,
+      },
     };
 
     // Handle codebase path if provided
@@ -121,7 +137,10 @@ program
       // const runCommand = await configService.promptForRunCommand()
       // config.runCommand = runCommand
     }
-    const infrastructureService = new InfrastructureService(config);
+    const infrastructureService = new InfrastructureService(
+      config,
+      configService
+    );
     const result = await infrastructureService.createInfrastructure();
 
     if (result.success) {
@@ -135,7 +154,7 @@ program
     }
   });
 
-/* View the status of an asobi application */
+/* View the status of an asobi  application */
 program
   .command("status")
   .description("Check application status")
