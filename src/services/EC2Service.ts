@@ -40,14 +40,14 @@ export class EC2Service extends BaseService {
     instanceProfileName: string
   ): Promise<string> {
     try {
-      if (!instanceProfileName) {
-        throw new InfrastructureError(
-          "Instance profile name is required",
-          "EC2_INSTANCE_ERROR"
-        );
-      }
+      // if (!instanceProfileName) {
+      //   throw new InfrastructureError(
+      //     "Instance profile name is required",
+      //     "EC2_INSTANCE_ERROR"
+      //   );
+      // }
       // verify instance profile is available before creating the instance
-      await this.verifyInstanceProfile(instanceProfileName);
+      // await this.verifyInstanceProfile(instanceProfileName);
 
       // get the profile arn
       const profileArn = await this.getInstanceProfileArn(instanceProfileName);
@@ -326,7 +326,7 @@ export class EC2Service extends BaseService {
   }
 
   private async getRegion(): Promise<string> {
-    const region = await this.ec2Client.config.region();
+    const region = await this.config.region;
     if (!region) {
       throw new InfrastructureError(
         "Failed to get AWS region",
@@ -342,11 +342,19 @@ export class EC2Service extends BaseService {
   ): Promise<string> {
     try {
       const region = await this.getRegion();
-      const iamClient = new IAMClient({ region });
+      const iamClient = new IAMClient({
+        region,
+        credentials: {
+          accessKeyId: this.config.accessKeyId,
+          secretAccessKey: this.config.secretAccessKey,
+        },
+      });
       const command = new GetInstanceProfileCommand({
         InstanceProfileName: instanceProfileName,
       });
       const response = await iamClient.send(command);
+
+      console.log("instance profile", response.InstanceProfile);
 
       if (!response.InstanceProfile?.Arn) {
         throw new InfrastructureError(
