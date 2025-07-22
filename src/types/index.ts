@@ -34,7 +34,7 @@ export type InfrastructureConfig = {
   keyName?: string;
   type?: "empty" | "load-balanced-web-service";
   port?: number;
-  resources?: InfrastructureResources;
+  resources: InfrastructureResources;
   accessKeyId: string;
   secretAccessKey: string;
   runCommand?: string;
