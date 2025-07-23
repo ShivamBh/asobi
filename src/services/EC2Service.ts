@@ -241,6 +241,37 @@ export class EC2Service extends BaseService {
     }
   }
 
+  async waitForInstanceToBeTerminated(
+    instanceId: string,
+    maxAttempts: number = 30,
+    waitTime: number = 3000
+  ): Promise<boolean> {
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        const command = new DescribeInstancesCommand({
+          InstanceIds: [instanceId],
+        });
+        const response = await this.ec2Client.send(command);
+        const instance = response.Reservations?.[0]?.Instances?.[0];
+        if (instance?.State?.Name === "terminated") {
+          return true;
+        }
+
+        console.log(`Waiting for instance to be terminated...`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        attempts++;
+      } catch (e) {
+        console.error(
+          `Error checking instance termination status...Trying again`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
+    }
+    return false;
+  }
+
   async waitForInstanceToBeRunning(
     instanceId: string,
     maxAttempts: number = 30,
