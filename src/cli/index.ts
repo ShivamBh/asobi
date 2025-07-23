@@ -6,6 +6,7 @@ import { join } from "path";
 import { InfrastructureService } from "../services/infrastructureService";
 import { mkdir, writeFile } from "fs/promises";
 import { checkIfAsobiProject } from "../utls/checkIfAsobiProject";
+import inquirer from "inquirer";
 
 const program = new Command();
 
@@ -106,14 +107,15 @@ program
       process.exit();
     }
 
-    if (config.type === "load-balanced-web-service") {
-      const port = await configService.promptForPort();
-      config.port = port;
+    // if (config.type === "load-balanced-web-service") {
+    //   const port = await configService.promptForPort();
+    //   config.port = port;
 
-      // TODO: Enable passing run commands inside the provisioned server
-      // const runCommand = await configService.promptForRunCommand()
-      // config.runCommand = runCommand
-    }
+    //   // TODO: Enable passing run commands inside the provisioned server
+    //   // const runCommand = await configService.promptForRunCommand()
+    //   // config.runCommand = runCommand
+    // }
+    console.log("config before creating", config);
     const infrastructureService = new InfrastructureService(
       config,
       configService
@@ -142,7 +144,45 @@ program
   .command("delete")
   .description("Delete an application")
   .argument("<app-name>", "Name of the application")
-  .action(async () => {});
+  .action(async () => {
+    try {
+      const initAsobiConfig = await checkIfAsobiProject();
+      if (!initAsobiConfig) {
+        console.log(
+          "No asobi project found. You can create one using 'asobi create' to get started."
+        );
+        process.exit(1);
+      }
+      const config = initAsobiConfig;
+      const configService = new ConfigService();
+      const infrastructure = new InfrastructureService(config, configService);
+
+      console.log(
+        "The following resources will be deleted on confirmation\n",
+        config
+      );
+
+      // Prompt for confirmation before proceeding with deletion
+      const answer = await inquirer.prompt<{ confirmDelete: boolean }>([
+        {
+          type: "confirm",
+          name: "confirmDelete",
+          message:
+            "Are you sure you want to delete this project. On confirmation all the resources listed above will be terminated",
+        },
+      ]);
+
+      if (answer.confirmDelete) {
+        // Start deletion
+        console.log("===== Deleting Infrastructure====");
+        await infrastructure.deleteInfrastructure();
+      }
+      console.log("=====Finished Deletion======");
+    } catch (e) {
+      console.error("Failed to delete resources", e);
+      process.exit(1);
+    }
+  });
 
 export async function main(args: string[]): Promise<void> {
   try {
