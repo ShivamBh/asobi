@@ -19,9 +19,10 @@ import inquirer from "inquirer";
 import { InfrastructureError } from "../utls/errors";
 import { CIDRService } from "./CIDRService";
 import { ConfigService } from "./configService";
+import { generateConfigTemplate } from "../utls/generateConfigTemplate";
 
 export class InfrastructureService {
-  private readonly config: InfrastructureConfig;
+  private config: InfrastructureConfig;
   private readonly uniqueId: string;
   private readonly vpcService: VpcService;
   private readonly subnetService: SubnetService;
@@ -383,7 +384,7 @@ export class InfrastructureService {
 
       const resources = this.config.resources;
 
-      // Delete resources in reverse order of creation with rollback handling
+      // Delete resources in reverse order of creation
 
       // Step 1: Deregister target from ALB
       if (resources.instanceId && resources.targetGroupArn) {
@@ -417,6 +418,24 @@ export class InfrastructureService {
         );
       }
 
+      console.log("Updating config\n", {
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          targetGroupArn: null,
+          loadBalancerArn: null,
+        },
+      });
+
+      this.updateLocalConfigAndFileOnDelete({
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          targetGroupArn: null,
+          loadBalancerArn: null,
+        },
+      });
+
       // Step 3: Terminate EC2 instance
       if (resources.instanceId) {
         await this.retryOperation(
@@ -428,7 +447,18 @@ export class InfrastructureService {
           MAX_RETRIES,
           failedResources
         );
+        await this.ec2Service.waitForInstanceToBeTerminated(
+          resources.instanceId
+        );
       }
+
+      this.updateLocalConfigAndFileOnDelete({
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          instanceId: null,
+        },
+      });
 
       // Step 4: Delete security groups
       if (resources.securityGroupIds) {
@@ -445,6 +475,14 @@ export class InfrastructureService {
         );
       }
 
+      this.updateLocalConfigAndFileOnDelete({
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          securityGroupIds: [],
+        },
+      });
+
       // Step 5: Delete subnets
       if (resources.subnetIds) {
         await this.retryOperation(
@@ -457,6 +495,14 @@ export class InfrastructureService {
           failedResources
         );
       }
+
+      this.updateLocalConfigAndFileOnDelete({
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          subnetIds: [],
+        },
+      });
 
       // Step 6: Delete VPC and related resources
       if (
@@ -479,6 +525,14 @@ export class InfrastructureService {
         );
       }
 
+      this.updateLocalConfigAndFileOnDelete({
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          vpcId: null,
+        },
+      });
+
       // Step 7: Delete IAM instance profile
       if (resources.instanceProfileName) {
         await this.retryOperation(
@@ -494,6 +548,14 @@ export class InfrastructureService {
         );
       }
 
+      this.updateLocalConfigAndFileOnDelete({
+        ...this.config,
+        resources: {
+          ...this.config.resources,
+          instanceProfileName: null,
+        },
+      });
+
       // Log any failed resources
       if (failedResources.length > 0) {
         console.warn("\nWarning: Some resources could not be deleted:");
@@ -505,6 +567,9 @@ export class InfrastructureService {
       // await this.globalConfig.removeApp(this.config.appName);
       console.log("Infrastructure deleted successfully!");
 
+      // Reset config to initial state
+      this.updateLocalConfigAndFileOnDelete(generateConfigTemplate());
+
       return {
         success: true,
         error:
@@ -514,21 +579,17 @@ export class InfrastructureService {
       };
     } catch (error) {
       console.error("Error in deleteInfrastructure:", error);
-      // console.error("Error during deletion, attempting rollback...");
-      //   await this.rollbackDeletion(resources, deletedResources);
-
-      //   return {
-      //     success: false,
-      //     error: `Failed to delete infrastructure: ${
-      //       error instanceof Error ? error.message : "Unknown error"
-      //     }`,
-      //   };
       return {
         success: false,
         error:
           error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
+  }
+
+  private async updateLocalConfigAndFileOnDelete(opts: InfrastructureConfig) {
+    this.config = opts;
+    this.configService.updateConfigFile(opts);
   }
 
   async getResources(): Promise<InfrastructureResources | null> {
