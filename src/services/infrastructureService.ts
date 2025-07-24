@@ -592,6 +592,19 @@ export class InfrastructureService {
     this.configService.updateConfigFile(opts);
   }
 
+  async fetchResourcesStatus() {
+    const ec2 = await this.ec2Service.fetchInstance(
+      this.config.resources.instanceId as string
+    );
+    const vpc = await this.vpcService.fetchVpc(
+      this.config.resources.vpcId as string
+    );
+    const alb = await this.albService.fetchLoadbalancer(
+      this.config.resources.loadBalancerArn as string
+    );
+    return { ec2, vpc, alb };
+  }
+
   async getResources(): Promise<InfrastructureResources | null> {
     try {
       return this.config.resources ? this.config.resources : null;

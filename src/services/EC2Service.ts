@@ -241,6 +241,14 @@ export class EC2Service extends BaseService {
     }
   }
 
+  async fetchInstance(instanceId: string) {
+    const command = new DescribeInstancesCommand({
+      InstanceIds: [instanceId],
+    });
+    const response = await this.ec2Client.send(command);
+    return response.Reservations?.[0].Instances?.[0];
+  }
+
   async waitForInstanceToBeTerminated(
     instanceId: string,
     maxAttempts: number = 30,

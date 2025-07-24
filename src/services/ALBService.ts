@@ -28,6 +28,14 @@ export class ALBService extends BaseService {
     this.albClient = albClient;
   }
 
+  async fetchLoadbalancer(arn: string) {
+    const command = new DescribeLoadBalancersCommand({
+      LoadBalancerArns: [arn],
+    });
+    const response = await this.albClient.send(command);
+    return response.LoadBalancers?.[0];
+  }
+
   async createLoadBalancer(
     vpcId: string,
     subnetIds: string[],

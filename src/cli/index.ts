@@ -137,7 +137,49 @@ program
 program
   .command("status")
   .description("Check application status")
-  .argument("<app-name>", "Name of the application");
+  .action(async () => {
+    try {
+      const initAsobiConfig = await checkIfAsobiProject();
+      if (!initAsobiConfig) {
+        console.log(
+          "No asobi project found. You can create one using 'asobi create' to get started."
+        );
+        process.exit(1);
+      }
+      const config = initAsobiConfig;
+      const configService = new ConfigService();
+      const infrastructure = new InfrastructureService(config, configService);
+
+      const resourceDetails = await infrastructure.fetchResourcesStatus();
+
+      console.log("\n===== Asobi App =====");
+      console.log("AppName: ", initAsobiConfig.appName);
+      console.log("\n");
+
+      console.log("===== EC2 Instance ====");
+      console.log("InstanceId: ", resourceDetails.ec2?.InstanceId);
+      console.log("Status: ", resourceDetails.ec2?.State?.Name);
+      console.log("ImageId: ", resourceDetails.ec2?.ImageId);
+      console.log("InstanceType: ", resourceDetails.ec2?.InstanceType);
+      console.log("KeyName: ", resourceDetails.ec2?.KeyName);
+      console.log("\n");
+
+      console.log("===== VPC =====");
+      console.log("VpcId: ", resourceDetails.vpc?.VpcId);
+      console.log("State: ", resourceDetails.vpc?.State);
+      console.log("CIDRBlock: ", resourceDetails.vpc?.CidrBlock);
+      console.log("\n");
+
+      console.log("===== Load Balancer =====");
+      console.log("LoadBalancerUrl: ", resourceDetails.alb?.DNSName);
+      console.log("Type: ", resourceDetails.alb?.Type);
+      console.log("Arn: ", resourceDetails.alb?.LoadBalancerArn);
+    } catch (e) {
+      console.log(
+        `An error occured while fetching the status of the deployed resources`
+      );
+    }
+  });
 
 /* Delete and cleanup resources of an asobi application */
 program

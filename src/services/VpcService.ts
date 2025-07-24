@@ -242,6 +242,14 @@ export class VpcService extends BaseService {
     }
   }
 
+  async fetchVpc(vpcId: string) {
+    const command = new DescribeVpcsCommand({
+      VpcIds: [vpcId],
+    });
+    const response = await this.ec2Client.send(command);
+    return response?.Vpcs?.[0];
+  }
+
   async selectOrCreateVpc(): Promise<{
     vpcId: string;
     routeTableId: string;
