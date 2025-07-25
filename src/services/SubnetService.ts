@@ -107,7 +107,7 @@ export class SubnetService extends BaseService {
 
   private async getExistingSubnets(
     vpcId: string
-  ): Promise<{ CidrBlock: string }[]> {
+  ): Promise<{ CidrBlock: string; id: string }[]> {
     try {
       const command = new DescribeSubnetsCommand({
         Filters: [
@@ -121,6 +121,7 @@ export class SubnetService extends BaseService {
 
       return (
         response.Subnets?.map((subnet) => ({
+          id: subnet.SubnetId || "",
           CidrBlock: subnet.CidrBlock || "",
         })) || []
       );
