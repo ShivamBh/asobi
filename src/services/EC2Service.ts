@@ -267,7 +267,9 @@ export class EC2Service extends BaseService {
           return true;
         }
 
-        console.log(`Waiting for instance to be terminated...`);
+        console.log(
+          `Waiting for instance to be terminated...(attempt: ${attempts}/${maxAttempts})`
+        );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
         attempts++;
       } catch (e) {
@@ -283,7 +285,7 @@ export class EC2Service extends BaseService {
   async waitForInstanceToBeRunning(
     instanceId: string,
     maxAttempts: number = 30,
-    waitTime: number = 30000
+    waitTime: number = 3000
   ): Promise<boolean> {
     let attempts = 0;
 
