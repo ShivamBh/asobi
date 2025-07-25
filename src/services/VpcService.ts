@@ -290,7 +290,9 @@ export class VpcService extends BaseService {
               name: "selectedVpc",
               message: "Select a VPC:",
               choices: vpcs.map((vpc) => ({
-                name: `${vpc.meta.VpcId}`,
+                name: `${vpc.meta.VpcId} ${
+                  vpc.meta.IsDefault ? "(default)" : ""
+                }`,
                 value: vpc.meta.VpcId,
               })),
             },
@@ -348,51 +350,6 @@ export class VpcService extends BaseService {
               vpcId: vpcDetails.meta.VpcId as string,
             };
           }
-
-          // const { vpcId } = await inquirer.prompt([
-          //   {
-          //     type: "list",
-          //     name: "vpcId",
-          //     message: "Select a VPC:",
-          //     choices: vpcs.map((vpc) => ({
-          //       name: `${vpc.name} (${vpc.value})`,
-          //       value: vpc.value,
-          //     })),
-          //   },
-          // ]);
-
-          // // Get VPC details
-          // const vpcDetails = await this.getVpcDetails(vpcId);
-          // if (!vpcDetails) {
-          //   throw new Error("Failed to get VPC details");
-          // }
-
-          // // Verify and configure VPC if needed
-          // const { needsConfiguration, routeTableId, internetGatewayId } =
-          //   await this.verifyVpcConfiguration(vpcId);
-
-          // if (needsConfiguration) {
-          //   console.log("Configuring existing VPC...");
-          //   const configResult = await this.configureExistingVpc(vpcId);
-          //   return {
-          //     vpcId,
-          //     routeTableId: configResult.routeTableId,
-          //     internetGatewayId: configResult.internetGatewayId,
-          //     cidrBlock: vpcDetails.CidrBlock,
-          //     availabilityZones: vpcDetails.AvailabilityZones,
-          //     isNewVpc: false,
-          //   };
-          // }
-
-          // return {
-          //   vpcId,
-          //   routeTableId: routeTableId!,
-          //   internetGatewayId: internetGatewayId!,
-          //   cidrBlock: vpcDetails.CidrBlock,
-          //   availabilityZones: vpcDetails.AvailabilityZones,
-          //   isNewVpc: false,
-          //   subnets: vpcDetails.subnets,
-          // };
         }
       }
 
