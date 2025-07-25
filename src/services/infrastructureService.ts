@@ -86,6 +86,7 @@ export class InfrastructureService {
     error?: string;
     resources?: InfrastructureResources;
   }> {
+    let subnetIds: string[];
     try {
       // Get AWS account details
       const awsDetails = await this.getAwsAccountDetails();
@@ -139,17 +140,22 @@ export class InfrastructureService {
       this.config.resources.internetGatewayId = vpcDetails.internetGatewayId;
       await this.configService.updateConfigFile(this.config);
       console.log("✓ VPC created");
+      subnetIds = vpcDetails.subnets as string[];
+      console.log("subnets", subnetIds);
 
       // Create subnets
-      console.log("\n=== Creating Subnets ===");
-      const subnetIds = await this.subnetService.createSubnets(
-        vpcDetails.vpcId,
-        vpcDetails.cidrBlock,
-        vpcDetails.availabilityZones
-      );
+      if (vpcDetails.isNewVpc || vpcDetails.subnets?.length === 0) {
+        console.log("\n=== Creating Subnets ===");
+        subnetIds = await this.subnetService.createSubnets(
+          vpcDetails.vpcId,
+          vpcDetails.cidrBlock,
+          vpcDetails.availabilityZones
+        );
+      }
       this.config.resources.subnetIds = subnetIds;
       console.log("✓ Subnets created");
       await this.configService.updateConfigFile(this.config);
+      // }
 
       // Create security groups
       console.log("\n=== Creating Security Groups ===");
@@ -438,18 +444,11 @@ export class InfrastructureService {
 
       // Step 3: Terminate EC2 instance
       if (resources.instanceId) {
-        await this.retryOperation(
-          async () => {
-            await this.ec2Service.terminateInstance(resources.instanceId!);
-            deletedResources.add("ec2_instance");
-          },
-          "EC2 instance",
-          MAX_RETRIES,
-          failedResources
-        );
+        await this.ec2Service.terminateInstance(resources.instanceId!);
         await this.ec2Service.waitForInstanceToBeTerminated(
           resources.instanceId
         );
+        deletedResources.add("ec2_instance");
       }
 
       this.updateLocalConfigAndFileOnDelete({
