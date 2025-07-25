@@ -509,19 +509,23 @@ export class InfrastructureService {
         resources.routeTableId &&
         resources.internetGatewayId
       ) {
-        await this.retryOperation(
-          async () => {
-            await this.vpcService.deleteVpc(
-              resources.vpcId!,
-              resources.routeTableId!,
-              resources.internetGatewayId!
-            );
-            deletedResources.add("vpc");
-          },
-          "VPC",
-          MAX_RETRIES,
-          failedResources
-        );
+        const vpc = await this.vpcService.fetchVpc(resources.vpcId);
+
+        if (!vpc?.IsDefault) {
+          await this.retryOperation(
+            async () => {
+              await this.vpcService.deleteVpc(
+                resources.vpcId!,
+                resources.routeTableId!,
+                resources.internetGatewayId!
+              );
+              deletedResources.add("vpc");
+            },
+            "VPC",
+            MAX_RETRIES,
+            failedResources
+          );
+        }
       }
 
       this.updateLocalConfigAndFileOnDelete({
