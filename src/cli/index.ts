@@ -7,6 +7,7 @@ import { InfrastructureService } from "../services/infrastructureService";
 import { mkdir, writeFile } from "fs/promises";
 import { checkIfAsobiProject } from "../utls/checkIfAsobiProject";
 import inquirer from "inquirer";
+import { DescribeSubnetsCommand, EC2Client } from "@aws-sdk/client-ec2";
 
 const program = new Command();
 
@@ -30,6 +31,14 @@ program
   .action(async (appName?: string) => {
     try {
       const awsCredentials = await configService.getAwsCredentials();
+      const command = new DescribeSubnetsCommand({
+        Filters: [
+          {
+            Name: "vpc-id",
+            Values: ["vpc-0c1491ac08b3b9c85"],
+          },
+        ],
+      });
     } catch (e) {
       console.error(`Error `);
     }
@@ -39,12 +48,6 @@ program
 program
   .command("create")
   .description("Create a new application")
-  .option("-p, --path <path>", "Path to the codebase directory")
-  .option(
-    "--type <type>",
-    "Application type(empty or load-balanced-web-service)",
-    "empty"
-  )
   .action(async (options) => {
     let config: InfrastructureConfig;
     let appName: string = "";
@@ -61,6 +64,7 @@ program
       ? initAsobiConfig
       : {
           appName,
+          type: "load-balanced-web-service",
           region: awsCredentials.region,
           accessKeyId: awsCredentials.accessKeyId,
           secretAccessKey: awsCredentials.secretAccessKey,
@@ -80,41 +84,23 @@ program
         };
 
     // Handle codebase path if provided
-    if (options.path) {
-      const codebasePath = options.path;
-      if (!existsSync(codebasePath)) {
-        console.error(`Error: Path ${codebasePath} does not exist`);
-        process.exit(1);
-      }
-
-      config.codebasePath = codebasePath;
-
-      // Check if its a Nodejs project
-      config.isNodeProject = existsSync(join(codebasePath, "package.json"));
-      if (config.isNodeProject) {
-        console.log("Detected Node.js project");
-      }
+    const codebasePath = process.cwd();
+    if (!existsSync(codebasePath)) {
+      console.error(`Error: Path ${codebasePath} does not exist`);
+      process.exit(1);
     }
 
-    // Handle application type[empty or load-balanced(can add more later like cron or background job etc?)]
-    if (
-      options.type &&
-      !["empty", "load-balanced-web-service"].includes(options.type)
-    ) {
-      console.error(
-        "Error: Type must be either 'empty' or 'load-balanced-web-service'"
-      );
-      process.exit();
-    }
+    config.codebasePath = codebasePath;
 
-    // if (config.type === "load-balanced-web-service") {
-    //   const port = await configService.promptForPort();
-    //   config.port = port;
+    // TODO: deploy code inside project and run healthcheck as part of the create process(TBD)
+    config.isNodeProject = false;
 
-    //   // TODO: Enable passing run commands inside the provisioned server
-    //   // const runCommand = await configService.promptForRunCommand()
-    //   // config.runCommand = runCommand
+    // Check if its a Nodejs project
+    // config.isNodeProject = existsSync(join(codebasePath, "package.json"));
+    // if (config.isNodeProject) {
+    //   console.log("Detected Node.js project");
     // }
+
     console.log("config before creating", config);
     const infrastructureService = new InfrastructureService(
       config,
@@ -185,7 +171,6 @@ program
 program
   .command("delete")
   .description("Delete an application")
-  .argument("<app-name>", "Name of the application")
   .action(async () => {
     try {
       const initAsobiConfig = await checkIfAsobiProject();

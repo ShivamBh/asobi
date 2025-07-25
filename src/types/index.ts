@@ -32,7 +32,7 @@ export type InfrastructureConfig = {
   instanceType?: string;
   amiId?: string;
   keyName?: string;
-  type?: "empty" | "load-balanced-web-service";
+  type: "background-service" | "load-balanced-web-service";
   port?: number;
   resources: InfrastructureResources;
   accessKeyId: string;
