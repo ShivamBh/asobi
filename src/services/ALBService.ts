@@ -272,7 +272,7 @@ export class ALBService extends BaseService {
         }
 
         console.log(
-          `Waiting for target health check...(attemps ${attempts}/${maxAttempts})`
+          `Waiting for target health check...(attempts ${attempts}/${maxAttempts})`
         );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
         attempts++;
