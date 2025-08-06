@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/ShivamBh/asobi/compare/v0.2.0...v0.2.1) (2025-08-06)
+
+
+### Bug Fixes
+
+* added missing awaits messing up the config after deletion ([6e992b2](https://github.com/ShivamBh/asobi/commit/6e992b24cdb6eced508ddb11a1c3575c6b26582f))
+
 # [0.2.0](https://github.com/ShivamBh/asobi/compare/v0.1.0...v0.2.0) (2025-07-25)
 
 
