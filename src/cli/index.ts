@@ -1,3 +1,4 @@
+import dotenv from "dotenv";
 import { Command } from "commander";
 import { existsSync, readFile } from "fs";
 import { ConfigService } from "../services/configService";
@@ -8,7 +9,9 @@ import { mkdir, writeFile } from "fs/promises";
 import { checkIfAsobiProject } from "../utls/checkIfAsobiProject";
 import inquirer from "inquirer";
 import { DescribeSubnetsCommand, EC2Client } from "@aws-sdk/client-ec2";
+import { generateConfigTemplate } from "../utls/generateConfigTemplate";
 
+dotenv.config();
 const program = new Command();
 
 // TODO: add a config service class to interact with a global config file(maybe also local config file to be saved to vcs?)
@@ -50,57 +53,53 @@ program
   .description("Create a new application")
   .action(async (options) => {
     let config: InfrastructureConfig;
-    let appName: string = "";
-    // Check if its a asobi project has been initialized, otherwise create a .asobi config directory
-    const initAsobiConfig = await checkIfAsobiProject();
+    const defaultConfig = generateConfigTemplate();
 
+    // Load existing config if present
+    const initAsobiConfig = await checkIfAsobiProject();
     const awsCredentials = await configService.getAwsCredentials();
 
-    if (!initAsobiConfig) {
-      appName = await configService.promptForAppName();
+    // Merge credentials into config
+    config = {
+      ...defaultConfig,
+      ...(initAsobiConfig || {}),
+      accessKeyId: awsCredentials.accessKeyId,
+      secretAccessKey: awsCredentials.secretAccessKey,
+      region: awsCredentials.region,
+    };
+
+    // Prompt for missing required fields
+    if (!config.appName) {
+      config.appName = await configService.promptForAppName();
+    }
+    if (!config.instanceType) {
+      config.instanceType = "t2.micro";
+    }
+    if (!config.amiId) {
+      // You can prompt for AMI or set a sensible default
+      config.amiId = "ami-0e670eb768a5fc3d4";
+    }
+    if (!config.keyName) {
+      config.keyName = "default-key-pair";
+    }
+    if (!config.domain) {
+      // Optionally prompt for domain or leave as empty string
+      config.domain = "";
     }
 
-    config = initAsobiConfig
-      ? initAsobiConfig
-      : {
-          appName,
-          type: "load-balanced-web-service",
-          region: awsCredentials.region,
-          accessKeyId: awsCredentials.accessKeyId,
-          secretAccessKey: awsCredentials.secretAccessKey,
-          instanceType: "t2.micro",
-          resources: {
-            instanceId: null,
-            certificateArn: null,
-            instanceProfileName: null,
-            internetGatewayId: null,
-            loadBalancerArn: null,
-            routeTableId: null,
-            securityGroupIds: [],
-            subnetIds: [],
-            targetGroupArn: null,
-            vpcId: null,
-          },
-        };
-
-    // Handle codebase path if provided
-    const codebasePath = process.cwd();
-    if (!existsSync(codebasePath)) {
-      console.error(`Error: Path ${codebasePath} does not exist`);
-      process.exit(1);
-    }
-
-    config.codebasePath = codebasePath;
-
-    // TODO: deploy code inside project and run healthcheck as part of the create process(TBD)
+    // Set codebase path and isNodeProject
+    config.codebasePath = process.cwd();
     config.isNodeProject = false;
 
-    // Check if its a Nodejs project
-    // config.isNodeProject = existsSync(join(codebasePath, "package.json"));
-    // if (config.isNodeProject) {
-    //   console.log("Detected Node.js project");
-    // }
+    // Optionally, prompt for port if not set
+    if (!config.port) {
+      config.port = await configService.promptForPort();
+    }
 
+    // Save the fully populated config back to disk
+    await configService.updateConfigFile(config);
+
+    // Proceed with infrastructure creation
     console.log("config before creating", config);
     const infrastructureService = new InfrastructureService(
       config,
@@ -132,8 +131,13 @@ program
         );
         process.exit(1);
       }
-      const config = initAsobiConfig;
-      const configService = new ConfigService();
+      const awsCredentials = await configService.getAwsCredentials();
+      const config: InfrastructureConfig = {
+        ...initAsobiConfig,
+        accessKeyId: awsCredentials.accessKeyId,
+        region: awsCredentials.region,
+        secretAccessKey: awsCredentials.secretAccessKey,
+      };
       const infrastructure = new InfrastructureService(config, configService);
 
       const resourceDetails = await infrastructure.fetchResourcesStatus();
@@ -180,8 +184,13 @@ program
         );
         process.exit(1);
       }
-      const config = initAsobiConfig;
-      const configService = new ConfigService();
+      const awsCredentials = await configService.getAwsCredentials();
+      const config: InfrastructureConfig = {
+        ...initAsobiConfig,
+        accessKeyId: awsCredentials.accessKeyId,
+        region: awsCredentials.region,
+        secretAccessKey: awsCredentials.secretAccessKey,
+      };
       const infrastructure = new InfrastructureService(config, configService);
 
       console.log(
