@@ -1,3 +1,12 @@
+## [0.2.2](https://github.com/ShivamBh/asobi/compare/v0.2.1...v0.2.2) (2025-08-06)
+
+
+### Bug Fixes
+
+* check against resources map instead of just app name ([c75ccf2](https://github.com/ShivamBh/asobi/commit/c75ccf2017b00ef262983929d1fb63a7640c9d66))
+* fixed config object creation for status and delete commands, refactored create command to setup default values ([e985be7](https://github.com/ShivamBh/asobi/commit/e985be7a0614a1d49afe4b9a7d4e19e7ebf06e2f))
+* fixed loading env vars from env file before prompting user ([bfc02e6](https://github.com/ShivamBh/asobi/commit/bfc02e669ad0a9c9162b11cb7ab9113d2636f56a))
+
 ## [0.2.1](https://github.com/ShivamBh/asobi/compare/v0.2.0...v0.2.1) (2025-08-06)
 
 
