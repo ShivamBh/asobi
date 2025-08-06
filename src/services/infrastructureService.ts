@@ -433,7 +433,7 @@ export class InfrastructureService {
         },
       });
 
-      this.updateLocalConfigAndFileOnDelete({
+      await this.updateLocalConfigAndFileOnDelete({
         ...this.config,
         resources: {
           ...this.config.resources,
@@ -451,7 +451,7 @@ export class InfrastructureService {
         deletedResources.add("ec2_instance");
       }
 
-      this.updateLocalConfigAndFileOnDelete({
+      await this.updateLocalConfigAndFileOnDelete({
         ...this.config,
         resources: {
           ...this.config.resources,
@@ -474,7 +474,7 @@ export class InfrastructureService {
         );
       }
 
-      this.updateLocalConfigAndFileOnDelete({
+      await this.updateLocalConfigAndFileOnDelete({
         ...this.config,
         resources: {
           ...this.config.resources,
@@ -495,7 +495,7 @@ export class InfrastructureService {
         );
       }
 
-      this.updateLocalConfigAndFileOnDelete({
+      await this.updateLocalConfigAndFileOnDelete({
         ...this.config,
         resources: {
           ...this.config.resources,
@@ -528,7 +528,7 @@ export class InfrastructureService {
         }
       }
 
-      this.updateLocalConfigAndFileOnDelete({
+      await this.updateLocalConfigAndFileOnDelete({
         ...this.config,
         resources: {
           ...this.config.resources,
@@ -551,7 +551,7 @@ export class InfrastructureService {
         );
       }
 
-      this.updateLocalConfigAndFileOnDelete({
+      await this.updateLocalConfigAndFileOnDelete({
         ...this.config,
         resources: {
           ...this.config.resources,
@@ -571,7 +571,7 @@ export class InfrastructureService {
       console.log("Infrastructure deleted successfully!");
 
       // Reset config to initial state
-      this.updateLocalConfigAndFileOnDelete(generateConfigTemplate());
+      await this.updateLocalConfigAndFileOnDelete(generateConfigTemplate());
 
       return {
         success: true,
@@ -592,7 +592,7 @@ export class InfrastructureService {
 
   private async updateLocalConfigAndFileOnDelete(opts: InfrastructureConfig) {
     this.config = opts;
-    this.configService.updateConfigFile(opts);
+    await this.configService.updateConfigFile(opts);
   }
 
   async fetchResourcesStatus() {
