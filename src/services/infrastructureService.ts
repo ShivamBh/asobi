@@ -380,15 +380,17 @@ export class InfrastructureService {
     const failedResources: { resource: string; error: string }[] = [];
 
     try {
-      const app = await this.config.appName;
-      if (!app) {
+      const resources = this.config.resources;
+      const hasAnyResource = Object.values(resources).some(
+        (v) => v !== null && !(Array.isArray(v) && v.length === 0)
+      );
+
+      if (!hasAnyResource) {
         return {
           success: false,
-          error: `App ${this.config.appName} not found`,
+          error: "No resources found to delete.",
         };
       }
-
-      const resources = this.config.resources;
 
       // Delete resources in reverse order of creation
 
