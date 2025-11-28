@@ -122,6 +122,10 @@ export class EC2Service extends BaseService {
 
       await this.deleteKeyPair();
 
+      if (e instanceof InfrastructureError) {
+        throw new InfrastructureError(e.message, e.code);
+      }
+
       throw new InfrastructureError(
         `Failed to create EC2 instance: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -216,7 +220,7 @@ export class EC2Service extends BaseService {
         console.log(`Local key file at '${keypath}' deleted.`);
       }
     } catch (e) {
-      console.error("Error deleting key pair:", error);
+      console.error("Error deleting key pair:", e);
       throw new InfrastructureError(
         `Failed to delete key pair: ${this.keyPairName}`,
         "EC2_ERROR"
@@ -367,7 +371,7 @@ export class EC2Service extends BaseService {
   }
 
   private async getRegion(): Promise<string> {
-    const region = await this.config.region;
+    const region = this.config.region;
     if (!region) {
       throw new InfrastructureError(
         "Failed to get AWS region",
