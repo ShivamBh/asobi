@@ -281,6 +281,7 @@ export class EC2Service extends BaseService {
           `Error checking instance termination status...Trying again`
         );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
+        attempts++;
       }
     }
     return false;
@@ -322,6 +323,7 @@ export class EC2Service extends BaseService {
         console.error(e);
 
         await new Promise((resolve) => setTimeout(resolve, waitTime));
+        attempts++;
       }
     }
     return false;
