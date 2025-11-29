@@ -14,6 +14,7 @@ import { mockConfig } from "../../fixtures/config";
 import { ec2Mock, iamMock } from "../../setup";
 import { GetInstanceProfileCommand } from "@aws-sdk/client-iam";
 import { InfrastructureError } from "../../../src/utls/errors";
+import { getInstanceProfile } from "../../fixtures/iam";
 
 vi.mock("fs", () => ({
   existsSync: vi.fn(),
@@ -30,6 +31,7 @@ describe("EC2Service", () => {
   beforeEach(() => {
     ec2Client = new EC2Client({ region: mockConfig.region });
     ec2Service = new EC2Service(mockConfig, ec2Client);
+    vi.resetAllMocks();
   });
 
   it("should instantiate without errors", () => {
@@ -67,6 +69,15 @@ describe("EC2Service", () => {
 
       const result = await ec2Service.getInstance();
       expect(result).toBeNull();
+    });
+
+    it("should throw EC2_ERROR when instance fetch fails", async () => {
+      ec2Mock
+        .on(DescribeInstancesCommand)
+        .rejects(new Error(`Failed to fetch instance`));
+
+      const result = await ec2Service.getInstance();
+      expect(result).toBe(null);
     });
   });
 
@@ -136,12 +147,7 @@ describe("EC2Service", () => {
       // Arrange: mock IAM profile lookup
       iamMock.on(GetInstanceProfileCommand).resolves({
         InstanceProfile: {
-          Arn: "arn:aws:iam::123456789012:instance-profile/test-profile",
-          InstanceProfileName: instanceProfileName,
-          CreateDate: new Date(),
-          InstanceProfileId: "instance-profile-id",
-          Path: "/",
-          Roles: [],
+          ...getInstanceProfile(instanceProfileName),
         },
       });
 
@@ -230,8 +236,7 @@ describe("EC2Service", () => {
     it("should throw an EC2_ERROR if no instance id is returned", async () => {
       iamMock.on(GetInstanceProfileCommand).resolves({
         InstanceProfile: {
-          Arn: "arn:aws:iam::123456789012:instance-profile/test-profile",
-          InstanceProfileName: instanceProfileName,
+          ...getInstanceProfile(),
         },
       });
 
@@ -261,8 +266,7 @@ describe("EC2Service", () => {
     it("should delete the newly created key pair if the instance creation fails", async () => {
       iamMock.on(GetInstanceProfileCommand).resolves({
         InstanceProfile: {
-          Arn: "arn:aws:iam::123456789012:instance-profile/test-profile",
-          InstanceProfileName: instanceProfileName,
+          ...getInstanceProfile(instanceProfileName),
         },
       });
 
@@ -338,13 +342,181 @@ describe("EC2Service", () => {
       });
     });
 
-    // it("should not delete .pem file from filesystem if it does not exist", async () => {
-    //   ec2Mock.on(DeleteKeyPairCommand).resolves({});
-    //   vi.mocked(fs.existsSync).mockReturnValue(false);
+    it("should not delete .pem file from filesystem if it does not exist", async () => {
+      ec2Mock.on(DeleteKeyPairCommand).resolves({});
+      vi.mocked(fs.existsSync).mockReturnValue(false);
 
-    //   await ec2Service.deleteKeyPair();
+      await ec2Service.deleteKeyPair();
 
-    //   expect(fs.unlinkSync).not.toHaveBeenCalled();
-    // });
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("waitForInstanceToBeRunning", () => {
+    const mockInstanceId = "i-123";
+    it("should return when instance reaches running state", async () => {
+      ec2Mock.on(DescribeInstancesCommand).resolves({
+        Reservations: [
+          {
+            Instances: [
+              {
+                State: {
+                  Name: "running",
+                  Code: 16,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await ec2Service.waitForInstanceToBeRunning(
+        mockInstanceId,
+        1,
+        100
+      );
+      expect(result).toBe(true);
+    });
+
+    it("should return false after max_attempts", async () => {
+      ec2Mock.on(DescribeInstancesCommand).resolves({
+        Reservations: [
+          {
+            Instances: [
+              {
+                State: {
+                  Name: "pending",
+                  Code: 0,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await ec2Service.waitForInstanceToBeRunning(
+        mockInstanceId,
+        1,
+        100
+      );
+      expect(result).toBe(false);
+    });
+
+    it("should check max_attempts number of times before returning false", async () => {
+      ec2Mock.on(DescribeInstancesCommand).resolves({
+        Reservations: [
+          {
+            Instances: [
+              {
+                State: {
+                  Name: "pending",
+                  Code: 0,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await ec2Service.waitForInstanceToBeRunning(
+        mockInstanceId,
+        3,
+        10
+      );
+      expect(ec2Mock.commandCalls(DescribeInstancesCommand)).toHaveLength(3);
+      expect(result).toBe(false);
+    });
+
+    it("should continue checking instance state max_attempt number of times even if the state fetch fails", async () => {
+      ec2Mock.on(DescribeInstancesCommand).rejects({});
+
+      await ec2Service.waitForInstanceToBeRunning(mockInstanceId, 3, 10);
+
+      expect(ec2Mock.commandCalls(DescribeInstancesCommand)).toHaveLength(3);
+    });
+  });
+
+  describe("waitForInstanceToBeTerminated", () => {
+    const mockInstanceId = "i-123";
+
+    it("should return true when an instance is terminated successfully", async () => {
+      ec2Mock.on(DescribeInstancesCommand).resolves({
+        Reservations: [
+          {
+            Instances: [
+              {
+                State: {
+                  Name: "terminated",
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await ec2Service.waitForInstanceToBeTerminated(
+        mockInstanceId,
+        1,
+        10
+      );
+      expect(result).toBe(true);
+    });
+
+    it("should return false after max_attempts", async () => {
+      ec2Mock.on(DescribeInstancesCommand).resolves({
+        Reservations: [
+          {
+            Instances: [
+              {
+                State: {
+                  Name: "stopping",
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await ec2Service.waitForInstanceToBeTerminated(
+        mockInstanceId,
+        1,
+        10
+      );
+      expect(result).toBe(false);
+    });
+
+    it("should run max_attempts number of times if instance is not terminated", async () => {
+      ec2Mock.on(DescribeInstancesCommand).resolves({
+        Reservations: [
+          {
+            Instances: [
+              {
+                State: {
+                  Name: "stopping",
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await ec2Service.waitForInstanceToBeTerminated(
+        mockInstanceId,
+        3,
+        10
+      );
+      expect(ec2Mock.commandCalls(DescribeInstancesCommand)).toHaveLength(3);
+    });
+
+    it("should run max_attempts number of times even if instance state fetching fails", async () => {
+      ec2Mock.on(DescribeInstancesCommand).rejects({});
+
+      const result = await ec2Service.waitForInstanceToBeTerminated(
+        mockInstanceId,
+        3,
+        10
+      );
+      expect(ec2Mock.commandCalls(DescribeInstancesCommand)).toHaveLength(3);
+    });
   });
 });
