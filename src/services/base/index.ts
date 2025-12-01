@@ -43,7 +43,7 @@ export class BaseService {
         ? "tg"
         : resourceType.slice(0, 4).toLowerCase();
 
-    return `${genLowercaseId()}`;
+    return `${prefix}-${genLowercaseId()}`;
   }
 
   protected getCommonTags(

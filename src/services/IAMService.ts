@@ -25,7 +25,11 @@ export class IAMService extends BaseService {
     this.iamClient = iamClient;
   }
 
-  async createInstanceProfile(): Promise<string> {
+  async createInstanceProfile(
+    maxAttempts: number = 10,
+    baseDelayMs: number = 2000,
+    maxDelayMs: number = 30000
+  ): Promise<string> {
     try {
       // verify iam permission first
       await this.verifyIamPermissions();
@@ -146,9 +150,6 @@ export class IAMService extends BaseService {
 
       let isProfileReady = false;
       let attempts = 0;
-      const maxAttempts = 30;
-      const baseDelayMs = 2000;
-      const maxDelayMs = 30000;
 
       while (!isProfileReady && attempts < maxAttempts) {
         const delay = Math.min(
@@ -179,9 +180,11 @@ export class IAMService extends BaseService {
 
       return profileName;
     } catch (e) {
-      console.error("Error creating instance profile", e);
-
       // TODO: catch different types of errors?
+      if (e instanceof InfrastructureError) {
+        throw e;
+      }
+
       throw new InfrastructureError(
         "Failed to create instance profile",
         "IAM_ERROR"
