@@ -1,3 +1,13 @@
+## [0.2.3](https://github.com/ShivamBh/asobi/compare/v0.2.2...v0.2.3) (2025-12-02)
+
+
+### Bug Fixes
+
+* added missing attempt increments on failures to retry failed aws calls ([b175b26](https://github.com/ShivamBh/asobi/commit/b175b26cae5bb3e51c4bcf25f3d98bc71e3793f7))
+* added prefixes, rethrow specific errors, move retry config to function args ([79a6cc9](https://github.com/ShivamBh/asobi/commit/79a6cc9e22b1f31762b1154e2f2c95ddfdc1e8ea))
+* refactored deleteSecurityGroups into smaller functions ([7a3ba61](https://github.com/ShivamBh/asobi/commit/7a3ba61f752f735163b20341149ffa16573fc16b))
+* used proper error code to propagate upwards ([501b7f7](https://github.com/ShivamBh/asobi/commit/501b7f74adead0ad2ac13ac3c97b3f053b49c0bb))
+
 ## [0.2.2](https://github.com/ShivamBh/asobi/compare/v0.2.1...v0.2.2) (2025-08-06)
 
 
