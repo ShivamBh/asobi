@@ -5,6 +5,7 @@ import {
   DescribeSecurityGroupsCommand,
   EC2Client,
   RevokeSecurityGroupIngressCommand,
+  SecurityGroup,
 } from "@aws-sdk/client-ec2";
 import { BaseService } from "./base";
 import { InfrastructureConfig } from "../types";
@@ -122,6 +123,8 @@ export class SecurityGroupService extends BaseService {
 
       return securityGroupIds;
     } catch (e) {
+      // TODO: catch specific errors with logging for easier debugging
+
       console.error("Error creating security groups:", e);
       throw new InfrastructureError(
         "Failed to create security groups",
@@ -130,53 +133,19 @@ export class SecurityGroupService extends BaseService {
     }
   }
 
-  async deleteSecurityGroups(securityGroupIds: string[]): Promise<void> {
+  async deleteSecurityGroups(
+    securityGroupIds: string[],
+    ruleWaitTime: number = 1000,
+    retryWaitTime: number = 5000
+  ): Promise<void> {
     try {
       // Delete in reverse order (EC2 SG first, then ALB SG)
       for (const groupId of [...securityGroupIds].reverse()) {
-        try {
-          // First, remove any ingress rules
-          const describeCommand = new DescribeSecurityGroupsCommand({
-            GroupIds: [groupId],
-          });
-
-          const response = await this.ec2Client.send(describeCommand);
-          const sg = response.SecurityGroups?.[0];
-
-          if (sg?.IpPermissions?.length) {
-            await this.ec2Client.send(
-              new RevokeSecurityGroupIngressCommand({
-                GroupId: groupId,
-                IpPermissions: sg.IpPermissions,
-              })
-            );
-          }
-
-          // Wait a bit for AWS to process the rule removal
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Then delete the security group
-          const deleteCommand = new DeleteSecurityGroupCommand({
-            GroupId: groupId,
-          });
-          await this.ec2Client.send(deleteCommand);
-
-          console.log(`Successfully deleted security group: ${groupId}`);
-        } catch (err: any) {
-          if (err.name === "DependencyViolation") {
-            console.log(
-              `Retrying deletion of security group ${groupId} in 5 seconds...`
-            );
-            await new Promise((resolve) => setTimeout(resolve, 5000));
-            await this.ec2Client.send(
-              new DeleteSecurityGroupCommand({
-                GroupId: groupId,
-              })
-            );
-          } else {
-            throw err;
-          }
-        }
+        await this.deleteSingleSecurityGroup(
+          groupId,
+          ruleWaitTime,
+          retryWaitTime
+        );
       }
     } catch (e) {
       console.error("Error deleting security groups", e);
@@ -203,6 +172,79 @@ export class SecurityGroupService extends BaseService {
     } catch (e) {
       console.error("Error fetching security groups", e);
       return [];
+    }
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async describeSecurityGroup(
+    groupId: string
+  ): Promise<SecurityGroup | null> {
+    const response = await this.ec2Client.send(
+      new DescribeSecurityGroupsCommand({
+        GroupIds: [groupId],
+      })
+    );
+    return response.SecurityGroups?.[0] ?? null;
+  }
+
+  private async revokeAllIngressRules(groupId: string, sg: SecurityGroup) {
+    if (!sg.IpPermissions || sg.IpPermissions.length === 0) {
+      return;
+    }
+
+    await this.ec2Client.send(
+      new RevokeSecurityGroupIngressCommand({
+        GroupId: groupId,
+        IpPermissions: sg.IpPermissions,
+      })
+    );
+  }
+
+  private async deleteSingleSecurityGroup(
+    groupId: string,
+    ruleWaitTime: number,
+    retryWaitTime: number
+  ): Promise<void> {
+    // 1. Describe SG and revoke ingress if present
+    const sg = await this.describeSecurityGroup(groupId);
+    if (sg) {
+      await this.revokeAllIngressRules(groupId, sg);
+      // Give AWS a moment to apply rule changes
+      await this.sleep(ruleWaitTime);
+    }
+
+    // 2. Try delete once, retry on DependencyViolation
+    try {
+      await this.ec2Client.send(
+        new DeleteSecurityGroupCommand({
+          GroupId: groupId,
+        })
+      );
+      console.log(`Successfully deleted security group: ${groupId}`);
+    } catch (err: any) {
+      if (err?.name !== "DependencyViolation") {
+        throw err;
+      }
+
+      console.log(
+        `Dependency violation when deleting security group ${groupId}. ` +
+          `Retrying in ${retryWaitTime}ms...`
+      );
+      await this.sleep(retryWaitTime);
+
+      // One retry; if this fails, let it bubble out to the caller
+      await this.ec2Client.send(
+        new DeleteSecurityGroupCommand({
+          GroupId: groupId,
+        })
+      );
+
+      console.log(
+        `Successfully deleted security group after retry: ${groupId}`
+      );
     }
   }
 }
