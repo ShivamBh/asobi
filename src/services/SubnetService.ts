@@ -8,16 +8,11 @@ import {
 import { BaseService } from "./base";
 import { InfrastructureConfig } from "../types";
 import { InfrastructureError } from "../utls/errors";
-import { CIDRService } from "./CIDRService";
 
 export class SubnetService extends BaseService {
   private readonly ec2Client: EC2Client;
 
-  constructor(
-    config: InfrastructureConfig,
-    ec2Client: EC2Client,
-    cidrService: CIDRService
-  ) {
+  constructor(config: InfrastructureConfig, ec2Client: EC2Client) {
     super(config);
     this.ec2Client = ec2Client;
   }

@@ -17,7 +17,6 @@ import { ALBService } from "./ALBService";
 import { nanoid } from "nanoid";
 import inquirer from "inquirer";
 import { InfrastructureError } from "../utls/errors";
-import { CIDRService } from "./CIDRService";
 import { ConfigService } from "./configService";
 import { generateConfigTemplate } from "../utls/generateConfigTemplate";
 
@@ -51,8 +50,7 @@ export class InfrastructureService {
     this.stsClient = new STSClient(awsClientConfig);
 
     this.vpcService = new VpcService(config, ec2Client);
-    const cidrService = new CIDRService(ec2Client);
-    this.subnetService = new SubnetService(config, ec2Client, cidrService);
+    this.subnetService = new SubnetService(config, ec2Client);
     this.securityGroupService = new SecurityGroupService(config, ec2Client);
     this.ec2Service = new EC2Service(config, ec2Client);
     this.iamService = new IAMService(config, iamClient);
