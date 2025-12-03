@@ -29,11 +29,27 @@ export class ALBService extends BaseService {
   }
 
   async fetchLoadbalancer(arn: string) {
-    const command = new DescribeLoadBalancersCommand({
-      LoadBalancerArns: [arn],
-    });
-    const response = await this.albClient.send(command);
-    return response.LoadBalancers?.[0];
+    try {
+      const command = new DescribeLoadBalancersCommand({
+        LoadBalancerArns: [arn],
+      });
+
+      const response = await this.albClient.send(command);
+      const lb = response.LoadBalancers;
+      if (!lb) {
+        throw new InfrastructureError(
+          `No load balancers found with arn: ${arn}`,
+          "ALB_ERROR"
+        );
+      }
+
+      return lb[0];
+    } catch (e) {
+      throw new InfrastructureError(
+        "Failed to fetch load balancer",
+        "ALB_ERROR"
+      );
+    }
   }
 
   async createLoadBalancer(
