@@ -1,3 +1,10 @@
+## [0.2.5](https://github.com/ShivamBh/asobi/compare/v0.2.4...v0.2.5) (2025-12-06)
+
+
+### Bug Fixes
+
+* added ALB tests and fixtures ([798bc51](https://github.com/ShivamBh/asobi/commit/798bc51e3ae92d06a57a4cd11597a2f2017b5f89))
+
 ## [0.2.4](https://github.com/ShivamBh/asobi/compare/v0.2.3...v0.2.4) (2025-12-06)
 
 
