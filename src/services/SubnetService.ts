@@ -53,7 +53,7 @@ export class SubnetService extends BaseService {
           TagSpecifications: [
             {
               ResourceType: "subnet",
-              Tags: this.getCommonTags(this.getResourceName(`subnet-${i + 1}`)),
+              Tags: this.getCommonTags(this.getResourceName(`subn}`)),
             },
           ],
         });
