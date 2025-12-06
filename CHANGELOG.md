@@ -1,3 +1,10 @@
+## [0.2.6](https://github.com/ShivamBh/asobi/compare/v0.2.5...v0.2.6) (2025-12-06)
+
+
+### Bug Fixes
+
+* removed redundant suffix ([ae16e59](https://github.com/ShivamBh/asobi/commit/ae16e598eb3715c3b03192df4e89fa5ef1740257))
+
 ## [0.2.5](https://github.com/ShivamBh/asobi/compare/v0.2.4...v0.2.5) (2025-12-06)
 
 
