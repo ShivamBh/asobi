@@ -1,3 +1,11 @@
+## [0.2.4](https://github.com/ShivamBh/asobi/compare/v0.2.3...v0.2.4) (2025-12-06)
+
+
+### Bug Fixes
+
+* added a try-catch block to handle error path for fetchLoadbalancer method ([875f499](https://github.com/ShivamBh/asobi/commit/875f4993adfe444131fac38fa2cdffdc68188ea9))
+* removed unused CIDRService class from subnet dependencies and imports ([02c6a24](https://github.com/ShivamBh/asobi/commit/02c6a249932dc96e9fd12c0abe26019af6ce7c18))
+
 ## [0.2.3](https://github.com/ShivamBh/asobi/compare/v0.2.2...v0.2.3) (2025-12-02)
 
 
